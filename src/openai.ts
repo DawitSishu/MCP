@@ -1,10 +1,5 @@
 import OpenAI from 'openai';
 
-// Initialize the OpenAI client
-export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
-
 export interface Message {
   role: string;
   content: string;
@@ -17,6 +12,15 @@ export interface Message {
  */
 export async function summarizeChat(messages: Message[]): Promise<string> {
   try {
+    // Check for API key
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY environment variable is not set');
+    }
+
+    // Initialize the OpenAI client with the current API key
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
   
     // Format messages for OpenAI
     const formattedMessages = messages.map(msg => ({
@@ -40,6 +44,6 @@ export async function summarizeChat(messages: Message[]): Promise<string> {
     return response.choices[0]?.message?.content || 'No summary generated';
   } catch (error) {
     console.error('Error summarizing chat:', error);
-    return `Error generating summary: ${(error as Error).message}`;
+    throw error; // Re-throw the error to be handled by the tool
   }
 } 

@@ -2,6 +2,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { summarizeChat, type Message } from "./openai.js";
+import * as dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 // Create an MCP server
 const server = new McpServer({
@@ -16,13 +20,14 @@ const MessageSchema = z.object({
   content: z.string()
 });
 
-// Tool to summarize chat history
+// Tool to get chat summary
 server.tool(
-  "summarize-chat",
+  "get_chat_summary",
   {
-    messages: z.array(MessageSchema)
+    messages: z.array(MessageSchema),
+    includeOriginalMessages: z.boolean().optional()
   },
-  async ({ messages }) => {
+  async ({ messages, includeOriginalMessages = false }) => {
     try {
       console.error(`Received ${messages.length} messages to summarize`);
       
@@ -30,14 +35,49 @@ server.tool(
       const summary = await summarizeChat(messages as Message[]);
       
       console.error(`Generated summary: ${summary.substring(0, 100)}...`);
+
+      // Format the response based on whether we should include original messages
+      const response = includeOriginalMessages ? 
+        `Summary:\n${summary}\n\nOriginal Messages:\n${messages.map(m => `${m.role}: ${m.content}`).join('\n')}` :
+        summary;
       
       return {
-        content: [{ type: "text", text: summary }]
+        content: [{ type: "text", text: response }]
       };
     } catch (error) {
-      console.error("Error in summarize-chat tool:", error);
+      console.error("Error in get_chat_summary tool:", error);
       return {
         content: [{ type: "text", text: `Error generating summary: ${(error as Error).message}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Tool to process messages with summary
+server.tool(
+  "process_with_summary",
+  {
+    messages: z.array(MessageSchema),
+    query: z.string()
+  },
+  async ({ messages, query }) => {
+    try {
+      console.error(`Processing query with ${messages.length} messages of history`);
+      
+      // Generate a summary first
+      const summary = await summarizeChat(messages as Message[]);
+      
+      // Create a response that includes both summary and the new query
+      const response = `Here's a summary of the conversation so far:\n\n${summary}\n\nNow, to address your question: "${query}"\n\n`;
+      
+      return {
+        content: [{ type: "text", text: response }]
+      };
+    } catch (error) {
+      console.error("Error in process_with_summary tool:", error);
+      return {
+        content: [{ type: "text", text: `Error processing request: ${(error as Error).message}` }],
         isError: true
       };
     }
@@ -63,14 +103,9 @@ server.prompt(
 async function main() {
   try {
     // Check for OpenAI API key
-    const apiKey = process.env.OPENAI_API_KEY;
-    
-    if (!apiKey) {
+    if (!process.env.OPENAI_API_KEY) {
       console.error("Error: OPENAI_API_KEY environment variable is not set");
-      // Instead of exiting, let's continue but log the error
       console.error("The server will start, but summarization will fail without an API key");
-    } else {
-      console.error("API key found, length: " + apiKey.length);
     }
 
     console.error("Starting ChatSummary MCP server...");

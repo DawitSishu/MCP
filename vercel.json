@@ -5,7 +5,9 @@
       "src": "dist/index.js",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["dist/**"]
+        "includeFiles": ["dist/**"],
+        "maxDuration": 60,
+        "memory": 1024
       }
     }
   ],
@@ -17,11 +19,5 @@
   ],
   "env": {
     "OPENAI_API_KEY": "@openai_api_key"
-  },
-  "functions": {
-    "dist/index.js": {
-      "memory": 1024,
-      "maxDuration": 60
-    }
   }
 }
